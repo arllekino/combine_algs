@@ -73,9 +73,9 @@ std::shared_ptr<Triangulation> Triangulation::DivideAndConquer(const std::vector
         return Merge(leftTriangulation, rightTriangulation);
     }
     // if vertices.size() >= 12
-    const float mid = vertices.size() / 2;
-    const std::vector<std::shared_ptr<Vertex>> left(vertices.begin(), vertices.begin() + std::floor(mid));
-    const std::vector<std::shared_ptr<Vertex>> right(vertices.begin() + std::ceil(mid), vertices.end());
+    const size_t mid = vertices.size() / 2;
+    const std::vector<std::shared_ptr<Vertex>> left(vertices.begin(), vertices.begin() + mid);
+    const std::vector<std::shared_ptr<Vertex>> right(vertices.begin() + mid, vertices.end());
 
     const auto leftTriangulation = Triangulation::DivideAndConquer(left);
     const auto rightTriangulation = Triangulation::DivideAndConquer(right);
@@ -87,11 +87,6 @@ std::shared_ptr<Triangulation> Triangulation::Merge(
     const std::shared_ptr<Triangulation>& left,
     const std::shared_ptr<Triangulation>& right)
 {
-    auto vertexCompare = [](const std::shared_ptr<Vertex>& a, const std::shared_ptr<Vertex>& b) {
-        if (!a || !b) return false;
-        return a->GetPosition() == b->GetPosition();
-    };
-
     auto result = std::make_shared<Triangulation>();
 
     result->m_vertices.insert(result->m_vertices.end(), left->m_vertices.begin(), left->m_vertices.end());
@@ -119,30 +114,11 @@ std::shared_ptr<Triangulation> Triangulation::Merge(
     exceptionsVertex.insert(upperTangent->GetEndPoint());
     exceptionsVertex.insert(upperTangent->GetTwinEdge()->GetEndPoint());
 
-    while (true)
+    while (!exceptionsVertex.contains(lowerTangent->GetEndPoint())
+            || !exceptionsVertex.contains(lowerTangent->GetTwinEdge()->GetEndPoint()))
     {
-        std::shared_ptr<Vertex> candidate;
-        if (FindEdgeByPoints(baseEdge->GetTwinEdge()->GetEndPoint()->GetPosition(), baseEdge->GetEndPoint()->GetPosition(), left->GetEdges()) != nullptr) {
-            candidate = FindClosestVertex(baseEdge, right->GetVertices(), exceptionsVertex);
-        }
-        else if (FindEdgeByPoints(baseEdge->GetTwinEdge()->GetEndPoint()->GetPosition(), baseEdge->GetEndPoint()->GetPosition(), right->GetEdges()) != nullptr) {
-            candidate = FindClosestVertex(baseEdge, left->GetVertices(), exceptionsVertex);
-        } else {
-            candidate = FindClosestVertex(baseEdge, vertices, exceptionsVertex);
-        }
-        // candidate = FindClosestVertex(baseEdge, vertices, exceptionsVertex);
+        auto candidate = FindClosestVertex(baseEdge, vertices, exceptionsVertex);
         exceptionsVertex.insert(candidate);
-
-        std::cout << baseEdge->GetTwinEdge()->GetEndPoint()->GetPosition().x << ", " << baseEdge->GetTwinEdge()->GetEndPoint()->GetPosition().y << "; ";
-        std::cout << baseEdge->GetEndPoint()->GetPosition().x << ", " << baseEdge->GetEndPoint()->GetPosition().y << std::endl;
-
-        std::cout << candidate->GetPosition().x << " " << candidate->GetPosition().y << std::endl;
-        std::cout << std::endl;
-        // for (const auto& vertex : result->m_vertices) {
-        //     if (vertex->GetPosition().y >= candidate->GetPosition().y) {
-        //         exceptionsVertex.insert(vertex);
-        //     }
-        // }
 
         std::shared_ptr<Edge> newEdge;
         std::shared_ptr<Verge> newTriangle;
@@ -150,11 +126,6 @@ std::shared_ptr<Triangulation> Triangulation::Merge(
         if (std::ranges::find(left->m_vertices, candidate) != left->m_vertices.end()) {
             newEdge = CreateEdge(ChooseVertexForNewEdge(left->GetVertices(), right->GetVertices(), baseEdge, candidate), candidate);
             auto otherEdge = FindEdgeByPoints(baseEdge->GetTwinEdge()->GetEndPoint()->GetPosition(), newEdge->GetEndPoint()->GetPosition(), left->GetEdges());
-            // for (const auto& vertex : result->m_vertices) {
-            //     if (!IsDelaunayConditionSatisfied(baseEdge, candidate, vertex)) {
-            //         newEdge = CreateEdge(baseEdge->GetEndPoint(), vertex);
-            //     }
-            // }
             if (!otherEdge) {
                 otherEdge = CreateEdge(baseEdge->GetTwinEdge()->GetEndPoint(), newEdge->GetEndPoint());
                 result->m_edges.insert(otherEdge);
@@ -165,11 +136,6 @@ std::shared_ptr<Triangulation> Triangulation::Merge(
         } else {
             newEdge = CreateEdge(candidate, ChooseVertexForNewEdge(left->GetVertices(), right->GetVertices(), baseEdge, candidate));
             auto otherEdge = FindEdgeByPoints(baseEdge->GetEndPoint()->GetPosition(), newEdge->GetTwinEdge()->GetEndPoint()->GetPosition(), right->GetEdges());
-            // for (const auto& vertex : result->m_vertices) {
-            //     if (!IsDelaunayConditionSatisfied(baseEdge, candidate, vertex)) {
-            //         newEdge = CreateEdge(vertex, baseEdge->GetEndPoint());
-            //     }
-            // }
             if (!otherEdge) {
                 otherEdge = CreateEdge(baseEdge->GetEndPoint(), newEdge->GetTwinEdge()->GetEndPoint());
                 result->m_edges.insert(otherEdge);
@@ -178,43 +144,21 @@ std::shared_ptr<Triangulation> Triangulation::Merge(
             newTriangle = CreateTriangle(baseEdge, newEdge, otherEdge);
         }
 
-        for (const auto& v1 : result->m_vertices) {
-            if (!v1 || vertexCompare(v1, candidate))
-                continue;
-            for (const auto& v2 : result->m_vertices) {
-                if (!v2 || vertexCompare(v2, candidate) || vertexCompare(v1, v2))
-                    continue;
-
-                if (AreEdgesIntersects(newEdge, CreateEdge(v1, v2))) {
-                    auto onDeleteEdge = FindEdgeByPoints(v1->GetPosition(), v2->GetPosition(), result->m_edges);
-                    if (onDeleteEdge) {
-                        if (result->m_edges.contains(onDeleteEdge)) {
-                            result->m_edges.erase(onDeleteEdge);
-                            result->m_edges.erase(onDeleteEdge->GetTwinEdge());
-                            // break;
-                        }
-                        // if (exceptionsVertex.contains(v1)) {
-                        //     exceptionsVertex.erase(v1);
-                        // }
-                        // if (exceptionsVertex.contains(v2)) {
-                        //     exceptionsVertex.erase(v2);
-                        // }
-                    }
-                }
+        std::set<std::shared_ptr<Edge>> edgesToDelete;
+        for (const auto& edge : result->m_edges) {
+            if (AreEdgesIntersects(newEdge, edge) && !edgesToDelete.contains(edge)) {
+                edgesToDelete.insert(edge);
             }
+        }
+
+        for (const auto& e : edgesToDelete) {
+            result->m_edges.erase(e);
         }
 
         result->m_edges.insert({newEdge, newEdge->GetTwinEdge()});
         result->m_triangles.insert(newTriangle);
 
-        if (exceptionsVertex.contains(lowerTangent->GetEndPoint())
-            || exceptionsVertex.contains(lowerTangent->GetTwinEdge()->GetEndPoint()))
-        {
-            break;
-        }
-
         baseEdge = newEdge->GetTwinEdge();
-        if (!baseEdge) break;
     }
 
     return result;
@@ -239,9 +183,10 @@ std::shared_ptr<Edge> Triangulation::CreateEdge(const std::shared_ptr<Vertex>& s
     return edge;
 }
 
-std::shared_ptr<Verge> Triangulation::CreateTriangle(const std::shared_ptr<Edge>& e1,
-                                                    const std::shared_ptr<Edge>& e2,
-                                                    const std::shared_ptr<Edge>& e3)
+std::shared_ptr<Verge> Triangulation::CreateTriangle(
+    const std::shared_ptr<Edge>& e1,
+    const std::shared_ptr<Edge>& e2,
+    const std::shared_ptr<Edge>& e3)
 {
 
     auto v1 = e1->GetEndPoint();
@@ -411,32 +356,57 @@ std::shared_ptr<Edge> Triangulation::FindUpTotalTangent(
     const std::vector<std::shared_ptr<Vertex>>& left,
     const std::vector<std::shared_ptr<Vertex>>& right)
 {
-    auto v1 = *std::ranges::max_element(left.begin(), left.end(),
-        [](const auto& v1, const auto& v2) {
-            return v1->GetPosition().y < v2->GetPosition().y;
-        });
-    auto v2 = *std::ranges::max_element(right.begin(), right.end(),
-        [](const auto& v1, const auto& v2) {
-            return v1->GetPosition().y < v2->GetPosition().y;
-        });
+    auto leftMostRight = FindMostRight(left);
+    auto rightMostLeft = FindMostLeft(right);
 
-    return CreateEdge(v1, v2);
+    while (true) {
+        bool changed = false;
+        auto nextRight = FindNextCandidate(right, leftMostRight, rightMostLeft, true);
+        if (nextRight) {
+            rightMostLeft = nextRight;
+            changed = true;
+        }
+        auto nextLeft = FindNextCandidate(left, rightMostLeft, leftMostRight, false);
+        if (nextLeft) {
+            leftMostRight = nextLeft;
+            changed = true;
+        }
+        if (!changed) break;
+    }
+
+    return CreateEdge(leftMostRight, rightMostLeft);
 }
 
 std::shared_ptr<Edge> Triangulation::FindDownTotalTangent(
     const std::vector<std::shared_ptr<Vertex>>& left,
     const std::vector<std::shared_ptr<Vertex>>& right)
 {
-    auto v1 = *std::ranges::min_element(left.begin(), left.end(),
-        [](const auto& v1, const auto& v2) {
-            return v1->GetPosition().y < v2->GetPosition().y;
-        });
-    auto v2 = *std::ranges::min_element(right.begin(), right.end(),
-        [](const auto& v1, const auto& v2) {
-            return v1->GetPosition().y < v2->GetPosition().y;
-        });
+    auto leftMostRight = FindMostRight(left);
+    auto rightMostLeft = FindMostLeft(right);
 
-    return CreateEdge(v1, v2);
+    while (true) {
+        bool changed = false;
+
+        auto nextRight = FindNextCandidate(
+            right, leftMostRight, rightMostLeft, false
+        );
+        if (nextRight) {
+            rightMostLeft = nextRight;
+            changed = true;
+        }
+
+        auto nextLeft = FindNextCandidate(
+            left, rightMostLeft, leftMostRight, true
+        );
+        if (nextLeft) {
+            leftMostRight = nextLeft;
+            changed = true;
+        }
+
+        if (!changed) break;
+    }
+
+    return CreateEdge(leftMostRight, rightMostLeft);
 }
 
 std::shared_ptr<Vertex> Triangulation::FindMostUp(const std::vector<std::shared_ptr<Vertex>>& vertices)
@@ -473,19 +443,12 @@ std::shared_ptr<Vertex> Triangulation::FindMostRight(const std::vector<std::shar
 
 bool Triangulation::IsConvex(Position a, Position b, Position c, Position d)
 {
-    auto v1 = std::make_shared<Vertex>();
-    auto v2 = std::make_shared<Vertex>();
-    auto v3 = std::make_shared<Vertex>();
-    auto v4 = std::make_shared<Vertex>();
-    v1->SetPosition(a);
-    v2->SetPosition(b);
-    v3->SetPosition(c);
-    v4->SetPosition(d);
+    double cross1 = CrossProduct(a, b, c);
+    double cross2 = CrossProduct(b, c, d);
+    double cross3 = CrossProduct(c, d, a);
+    double cross4 = CrossProduct(d, a, b);
 
-    auto edge1 = CreateEdge(v1, v3);
-    auto edge2 = CreateEdge(v2, v4);
-
-    return AreEdgesIntersects(edge1, edge2);
+    return (cross1 * cross2 > 0) && (cross2 * cross3 > 0) && (cross3 * cross4 > 0);
 }
 
 double Triangulation::DefineDistance(Position a, Position b)
@@ -495,15 +458,15 @@ double Triangulation::DefineDistance(Position a, Position b)
 
 double Triangulation::DefineAngleCos(Position a, Position b, Position c)
 {
-    double ba_x = a.x - b.x;
-    double ba_y = a.y - b.y;
-    double bc_x = c.x - b.x;
-    double bc_y = c.y - b.y;
+    double baX = a.x - b.x;
+    double baY = a.y - b.y;
+    double bcX = c.x - b.x;
+    double bcY = c.y - b.y;
 
-    double dotProduct = ba_x * bc_x + ba_y * bc_y;
+    double dotProduct = baX * bcX + baY * bcY;
 
-    double ba_length = sqrt(ba_x * ba_x + ba_y * ba_y);
-    double bc_length = sqrt(bc_x * bc_x + bc_y * bc_y);
+    double ba_length = sqrt(baX * baX + baY * baY);
+    double bc_length = sqrt(bcX * bcX + bcY * bcY);
 
     if (ba_length == 0.0 || bc_length == 0.0) {
         return 1.0;
@@ -514,15 +477,15 @@ double Triangulation::DefineAngleCos(Position a, Position b, Position c)
 
 double Triangulation::DefineAngleSin(Position a, Position b, Position c)
 {
-    double ba_x = a.x - b.x;
-    double ba_y = a.y - b.y;
-    double bc_x = c.x - b.x;
-    double bc_y = c.y - b.y;
+    double baX = a.x - b.x;
+    double baY = a.y - b.y;
+    double bcX = c.x - b.x;
+    double bcY = c.y - b.y;
 
-    double crossProduct = ba_x * bc_y - ba_y * bc_x;
+    double crossProduct = baX * bcY - baY * bcX;
 
-    double ba_length = sqrt(ba_x * ba_x + ba_y * ba_y);
-    double bc_length = sqrt(bc_x * bc_x + bc_y * bc_y);
+    double ba_length = sqrt(baX * baX + baY * baY);
+    double bc_length = sqrt(bcX * bcX + bcY * bcY);
 
     if (ba_length == 0.0 || bc_length == 0.0) {
         return 0.0;
@@ -531,31 +494,52 @@ double Triangulation::DefineAngleSin(Position a, Position b, Position c)
     return crossProduct / (ba_length * bc_length);
 }
 
+bool InCircle(const Position& a, const Position& b, const Position& c, const Position& d)
+{
+    double ax = a.x - d.x;
+    double ay = a.y - d.y;
+    double bx = b.x - d.x;
+    double by = b.y - d.y;
+    double cx = c.x - d.x;
+    double cy = c.y - d.y;
+
+    double det = (ax * ax + ay * ay) * (bx * cy - cx * by)
+               - (bx * bx + by * by) * (ax * cy - cx * ay)
+               + (cx * cx + cy * cy) * (ax * by - bx * ay);
+
+    return det < 0;
+}
 
 std::shared_ptr<Vertex> Triangulation::FindClosestVertex(
     const std::shared_ptr<Edge>& edge,
     const std::vector<std::shared_ptr<Vertex>>& vertices,
     const std::set<std::shared_ptr<Vertex>>& exceptions)
 {
-    std::vector<std::pair<double, std::shared_ptr<Vertex>>> pairs;
     auto a = edge->GetTwinEdge()->GetEndPoint()->GetPosition();
     auto c = edge->GetEndPoint()->GetPosition();
 
-    auto mid = (a + c) / 2;
+    std::shared_ptr<Vertex> bestCandidate = nullptr;
 
     for (const auto& vertex : vertices)
     {
         if (exceptions.contains(vertex))
             continue;
 
-        pairs.push_back(std::pair<double, std::shared_ptr<Vertex>>{DefineDistance(mid, vertex->GetPosition()), vertex});
+        if (!bestCandidate)
+        {
+            bestCandidate = vertex;
+            continue;
+        }
+
+        if (InCircle(a, c, bestCandidate->GetPosition(), vertex->GetPosition()))
+        {
+            bestCandidate = vertex;
+        }
     }
 
-    return std::ranges::min_element(pairs,
-        [](const auto& pair1, const auto& pair2) {
-            return pair1.first < pair2.first;
-        })->second;
+    return bestCandidate;
 }
+
 
 std::set<std::shared_ptr<Vertex>> Triangulation::FindExceptions(const std::vector<std::shared_ptr<Vertex>>& left, const std::vector<std::shared_ptr<Vertex>>& right)
 {
@@ -756,4 +740,36 @@ std::shared_ptr<Vertex> Triangulation::ChooseVertexForNewEdge(const std::vector<
         return baseEdge->GetEndPoint();
     }
     return baseEdge->GetTwinEdge()->GetEndPoint();
+}
+
+std::shared_ptr<Vertex> Triangulation::FindNextCandidate(
+    const std::vector<std::shared_ptr<Vertex>>& vertices,
+    const std::shared_ptr<Vertex>& currentEdgeStart,
+    const std::shared_ptr<Vertex>& currentEdgeEnd,
+    bool isRightPart)
+{
+    std::shared_ptr<Vertex> nextCandidate = nullptr;
+    const Position& a = currentEdgeStart->GetPosition();
+    const Position& b = currentEdgeEnd->GetPosition();
+
+    for (const auto& vertex : vertices) {
+        if (vertex == currentEdgeStart || vertex == currentEdgeEnd) continue;
+
+        const Position& p = vertex->GetPosition();
+        double cross = (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
+
+        if ((isRightPart && cross > 0) || (!isRightPart && cross < 0)) {
+            if (!nextCandidate) {
+                nextCandidate = vertex;
+            } else {
+                double crossWithPrev = (nextCandidate->GetPosition().x - a.x) * (p.y - a.y)
+                                     - (nextCandidate->GetPosition().y - a.y) * (p.x - a.x);
+                if ((isRightPart && crossWithPrev < 0) || (!isRightPart && crossWithPrev > 0)) {
+                    nextCandidate = vertex;
+                }
+            }
+        }
+    }
+
+    return nextCandidate;
 }

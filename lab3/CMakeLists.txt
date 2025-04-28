@@ -3,7 +3,6 @@ project(triangulation)
 
 set(CMAKE_CXX_STANDARD 20)
 
-# Укажи путь к SFML (обязательно)
 set(SFML_DIR "/opt/homebrew/Cellar/sfml/3.0.0_1/lib/cmake/SFML")
 add_executable(triangulation
         edge/edge.h
@@ -18,7 +17,6 @@ add_executable(triangulation
 find_package(SFML 3 REQUIRED COMPONENTS Graphics Window System)
 include_directories(${SFML_INCLUDE_DIRS})
 
-# Линкуем библиотеки напрямую
 target_link_libraries(triangulation
         SFML::System
         SFML::Window

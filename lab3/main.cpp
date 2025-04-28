@@ -56,60 +56,71 @@ std::vector<sf::CircleShape> ConvertToPoints(const std::vector<std::shared_ptr<V
 int main() {
     Triangulation triangulation;
 
-    std::vector<std::shared_ptr<Position>> points
-    = {
-        std::make_shared<Position>(-35, 25),
-        std::make_shared<Position>(-20, 15),
-        std::make_shared<Position>(-30, 15),
-        std::make_shared<Position>(-35, 10),
-        std::make_shared<Position>(0, 0),
-        std::make_shared<Position>(1, 10),
-        std::make_shared<Position>(2, 1),
-        std::make_shared<Position>(6, 6),
-        std::make_shared<Position>(10, 0),
-        std::make_shared<Position>(10, 6),
-        std::make_shared<Position>(10, 10),
-        std::make_shared<Position>(15, 15),
-        std::make_shared<Position>(15, 5),
-        std::make_shared<Position>(16, 0),
-        std::make_shared<Position>(16, 10),
-        std::make_shared<Position>(22, 2),
-        std::make_shared<Position>(24, 10),
-    };
+    std::vector<std::shared_ptr<Position>> points;
+    // = {
+    //     std::make_shared<Position>(-35, 25),
+    //     std::make_shared<Position>(-20, 15),
+    //     std::make_shared<Position>(-30, 15),
+    //     std::make_shared<Position>(-35, 10),
+    //
+    //     std::make_shared<Position>(-35, 0),
+    //             std::make_shared<Position>(-20, -10),
+    //             std::make_shared<Position>(-30, -10),
+    //             std::make_shared<Position>(-35, -15),
+    //
+    //
+    //     std::make_shared<Position>(0, 25),
+    //     std::make_shared<Position>(15, 15),
+    //     std::make_shared<Position>(5, 15),
+    //     std::make_shared<Position>(0, 10),
+    //
+    //     std::make_shared<Position>(0, 0),
+    //             std::make_shared<Position>(15, -10),
+    //             std::make_shared<Position>(5, -10),
+    //             std::make_shared<Position>(0, -15),
 
-    // const float scale = 10.0f;
-    // const float offsetX = 400.0f;
-    // const float offsetY = 300.0f;
-    // const int windowWidth = 800;
-    // const int windowHeight = 600;
-    //
-    // std::mt19937 rng(std::time(nullptr));
-    // std::uniform_real_distribution<float> distX(-40.0f, 40.0f);
-    // std::uniform_real_distribution<float> distY(-30.0f, 30.0f);
-    //
-    // for(int i = 0; i < 100; ++i) {
-    //     float x = distX(rng);
-    //     float y = distY(rng);
-    //
-    //     float screenX = x * scale + offsetX;
-    //     float screenY = -y * scale + offsetY;
-    //
-    //     if(screenX >= 0 && screenX <= windowWidth &&
-    //        screenY >= 0 && screenY <= windowHeight) {
-    //         points.emplace_back(std::make_shared<Position>(x, y));
-    //        }
-    // }
+        // std::make_shared<Position>(0, 0),
+        // std::make_shared<Position>(1, 10),
+        // std::make_shared<Position>(2, 1),
+        // std::make_shared<Position>(6, 6),
+        // std::make_shared<Position>(10, 0),
+        // std::make_shared<Position>(10, 6),
+        // std::make_shared<Position>(10, 10),
+        // std::make_shared<Position>(15, 15),
+        // std::make_shared<Position>(15, 5),
+        // std::make_shared<Position>(16, 0),
+        // std::make_shared<Position>(16, 10),
+        // std::make_shared<Position>(22, 2),
+        // std::make_shared<Position>(24, 10),
+    // };
+
+    const float scale = 10.0f;
+    const float offsetX = 400.0f;
+    const float offsetY = 300.0f;
+    const int windowWidth = 800;
+    const int windowHeight = 600;
+
+    std::mt19937 rng(std::time(nullptr));
+    std::uniform_real_distribution<float> distX(-40.0f, 40.0f);
+    std::uniform_real_distribution<float> distY(-30.0f, 30.0f);
+
+    for(int i = 0; i < 20; ++i) {
+        float x = distX(rng);
+        float y = distY(rng);
+
+        float screenX = x * scale + offsetX;
+        float screenY = -y * scale + offsetY;
+
+        if (screenX >= 0 && screenX <= windowWidth
+            && screenY >= 0 && screenY <= windowHeight) {
+            points.emplace_back(std::make_shared<Position>(x, y));
+        }
+    }
 
     triangulation.DelaunayTriangulation(points);
-    //
     // std::cout << "Triangles count: " << triangulation.GetTriangles().size() << std::endl;
     // std::cout << "Edges count: " << triangulation.GetEdges().size() << std::endl;
-    //
     const auto edges = triangulation.GetEdges();
-    if (edges.empty()) {
-        std::cerr << "Error: No edges to draw!" << std::endl;
-        return -1;
-    }
 
     auto drawableEdges = ConvertEdgesToLines(edges);
     auto drawablePoints = ConvertToPoints(triangulation.GetVertices());

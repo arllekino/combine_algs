@@ -26,6 +26,7 @@ public:
     void SetNextEdge(std::shared_ptr<Edge> edge);
     void SetTwinEdge(std::shared_ptr<Edge> edge);
     void SetTriangle(std::shared_ptr<Verge> verge);
+
 private:
     EdgeState m_state;
 };
